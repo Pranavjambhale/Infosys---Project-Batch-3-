@@ -107,3 +107,38 @@ env\Scripts\activate
 (Optional :- 5) Local URL: http://localhost:8501
 Network URL: http://<your-network-ip>:8501)
 (These are the command use step by step on terminal for the run.),,,
+
+# List of Company Name and Company Code
+Tech Companies
+Apple Inc. (AAPL)
+Microsoft Corporation (MSFT)
+Alphabet Inc. (GOOGL) (Class A shares)
+Amazon.com Inc. (AMZN)
+Meta Platforms Inc. (META) (formerly Facebook)
+Automobile
+Tesla Inc. (TSLA)
+Ford Motor Company (F)
+General Motors (GM)
+Consumer Goods
+The Coca-Cola Company (KO)
+PepsiCo Inc. (PEP)
+Procter & Gamble Co. (PG)
+Financials
+JPMorgan Chase & Co. (JPM)
+Bank of America Corporation (BAC)
+Wells Fargo & Company (WFC)
+Pharmaceuticals
+Pfizer Inc. (PFE)
+Moderna Inc. (MRNA)
+Johnson & Johnson (JNJ)
+Retail
+Walmart Inc. (WMT)
+Costco Wholesale Corporation (COST)
+The Home Depot, Inc. (HD)
+Energy
+Exxon Mobil Corporation (XOM)
+Chevron Corporation (CVX)
+BP plc (BP)
+Airlines
+Delta Air Lines, Inc. (DAL)
+American Airlines Group Inc. (AAL)
