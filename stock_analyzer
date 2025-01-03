@@ -1,0 +1,408 @@
+import streamlit as st
+import yfinance as yf
+import hashlib
+import base64
+import pandas as pd
+import numpy as np
+import datetime
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+import plotly.express as px
+import plotly.graph_objects as go
+import smtplib  # For email notifications
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import io
+import os
+
+# Function to securely hash passwords
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Password strength check
+def check_password_strength(password):
+    if len(password) < 8:
+        return False
+    if not re.search(r"\d", password):
+        return False
+    if not re.search(r"\W", password):
+        return False
+    return True
+
+# Initialize session state variables
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+if 'username' not in st.session_state:
+    st.session_state['username'] = None
+if 'user_data' not in st.session_state:
+    st.session_state['user_data'] = {}
+
+# Function to handle user registration
+def register():
+    st.subheader("Register")
+    username = st.text_input("Username", key="register_username")
+    email = st.text_input("Email", key="register_email")
+    password = st.text_input("Password", type="password", key="register_password")
+    confirm_password = st.text_input("Confirm Password", type="password", key="registration_confirm_password")
+
+    if st.button("Register", key="register_button"):
+        if not username or not email or not password:
+            st.warning("Please fill in all the fields.")
+        elif username in st.session_state['user_data']:
+            st.warning("Username already exists!")
+        elif password != confirm_password:
+            st.warning("Passwords do not match!")
+        else:
+            st.session_state['user_data'][username] = {
+                "email": email,
+                "password": hash_password(password),
+                "profile_pic": None  # Initialize profile picture as None
+            }
+            st.success("Registration successful! You can now log in.")
+
+# Function to handle user login
+def login():
+    st.subheader("Login")
+    username = st.text_input("Username", key="login_username")
+    password = st.text_input("Password", type="password", key="login_password")
+
+    if st.button("Login", key="login_button"):
+        hashed_password = hash_password(password)
+        user_data = st.session_state['user_data']
+        if username in user_data and user_data[username]["password"] == hashed_password:
+            st.session_state['logged_in'] = True
+            st.session_state['username'] = username
+            st.success(f"Welcome, {username}")
+        else:
+            st.error("Invalid username or password")
+
+# Function to handle user logout
+def logout():
+    st.session_state['logged_in'] = False
+    st.session_state['username'] = None
+    st.info("You have logged out.")
+
+# Profile section
+def profile_section():
+    username = st.session_state['username']
+    user_data = st.session_state['user_data'][username]
+
+    st.title("My Profile")
+    if user_data['profile_pic']:
+        st.image(user_data['profile_pic'], width=150)
+    else:
+        st.info("No profile picture uploaded yet.")
+
+    uploaded_file = st.file_uploader("Upload Profile Picture", type=["jpg", "jpeg", "png"], key="upload_profile_pic")
+    if uploaded_file:
+        user_data['profile_pic'] = uploaded_file.read()
+        st.session_state['user_data'][username] = user_data
+        st.success("Profile picture updated!")
+
+    st.subheader("User Details")
+    st.write(f"Username: {username}")
+    st.write(f"Email: {user_data['email']}")
+
+# Admin Dashboard
+def admin_dashboard():
+    st.subheader("Admin Dashboard")
+    menu = ["Manage Users", "Manage Market Data"]
+    choice = st.selectbox("Select option", menu)
+
+    if choice == "Manage Users":
+        manage_users()
+    elif choice == "Manage Market Data":
+        manage_market_data()
+
+# User Management
+def manage_users():
+    st.subheader("User Management")
+    action = st.selectbox("Choose an action", ["Add User", "Delete User"])
+
+    if action == "Add User":
+        add_user()
+    elif action == "Delete User":
+        delete_user()
+
+def add_user():
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Add User"):
+        # Add user logic here
+        st.success(f"User {username} added!")
+
+def delete_user():
+    username = st.text_input("Username to Delete")
+    if st.button("Delete User"):
+        # Delete user logic here
+        st.success(f"User {username} deleted!")
+
+# Exporting data to CSV
+def export_to_csv(data, filename="report.csv"):
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False)
+
+# Exporting data to PDF
+def export_to_pdf(data, filename="report.pdf"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    for row in data:
+        pdf.cell(200, 10, txt=" | ".join(map(str, row)), ln=True)
+    pdf.output(filename)
+
+# Generate Custom Report
+def generate_report():
+    st.subheader("Generate Report")
+
+    data = [
+        ["AAPL", 150],
+        ["GOOG", 2800]
+    ]
+
+    st.write(data)
+
+    if st.button("Export to CSV"):
+        export_to_csv(data)
+        st.success("CSV Exported!")
+
+    if st.button("Export to PDF"):
+        export_to_pdf(data)
+        st.success("PDF Exported!")
+
+# Sending Email Alerts
+def send_email_alert():
+    st.subheader("Send Market Alert")
+
+    subject = st.text_input("Subject")
+    body = st.text_area("Body")
+    to_email = st.text_input("Recipient Email")
+
+    if st.button("Send Alert"):
+        send_email(subject, body, to_email)
+        st.success("Email sent successfully!")
+
+def send_email(subject, body, to_email):
+    from_email = "your_email@example.com"
+    password = "your_password"
+    
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    server = smtplib.SMTP('smtp.example.com', 587)
+    server.starttls()
+    server.login(from_email, password)
+    text = msg.as_string()
+    server.sendmail(from_email, to_email, text)
+    server.quit()
+
+# Market Trends Analysis Function
+def market_trends_analysis():
+    st.title("Market Trends Analysis")
+
+    # Updated company_categories dictionary
+    company_categories = {
+        "Tech Companies": [
+            ("Apple Inc. (AAPL)", "AAPL"),
+            ("Microsoft Corporation (MSFT)", "MSFT"),
+            ("Alphabet Inc. (GOOGL)", "GOOGL"),
+            ("Amazon.com Inc. (AMZN)", "AMZN"),
+            ("Meta Platforms Inc. (META)", "META")
+        ],
+        "Automobile": [
+            ("Tesla Inc. (TSLA)", "TSLA"),
+            ("Ford Motor Company (F)", "F"),
+            ("General Motors (GM)", "GM")
+        ],
+        "Consumer Goods": [
+            ("The Coca-Cola Company (KO)", "KO"),
+            ("PepsiCo Inc. (PEP)", "PEP"),
+            ("Procter & Gamble Co. (PG)", "PG")
+        ],
+        "Financials": [
+            ("JPMorgan Chase & Co. (JPM)", "JPM"),
+            ("Bank of America Corporation (BAC)", "BAC"),
+            ("Wells Fargo & Company (WFC)", "WFC")
+        ],
+        "Pharmaceuticals": [
+            ("Pfizer Inc. (PFE)", "PFE"),
+            ("Moderna Inc. (MRNA)", "MRNA"),
+            ("Johnson & Johnson (JNJ)", "JNJ")
+        ],
+        "Retail": [
+            ("Walmart Inc. (WMT)", "WMT"),
+            ("Costco Wholesale Corporation (COST)", "COST"),
+            ("The Home Depot, Inc. (HD)", "HD")
+        ],
+        "Energy": [
+            ("Exxon Mobil Corporation (XOM)", "XOM"),
+            ("Chevron Corporation (CVX)", "CVX"),
+            ("BP plc (BP)", "BP")
+        ],
+        "Airlines": [
+            ("Delta Air Lines, Inc. (DAL)", "DAL"),
+            ("American Airlines Group Inc. (AAL)", "AAL")
+        ]
+    }
+
+    selected_category = st.selectbox("Select a Category", list(company_categories.keys()))
+    selected_company, selected_code = st.selectbox("Select a Company", company_categories[selected_category])
+
+    # Date range selection
+    start_date = st.date_input("Start Date", datetime.date(2023, 1, 1))
+    end_date = st.date_input("End Date", datetime.date.today() + datetime.timedelta(days=30))
+
+    # Simulated stock data generation
+    date_range = pd.date_range(start=start_date, end=end_date)
+    stock_data = pd.DataFrame({
+        "Date": date_range,
+        "Open": np.random.uniform(100, 500, len(date_range)),
+        "High": np.random.uniform(100, 500, len(date_range)),
+        "Low": np.random.uniform(100, 500, len(date_range)),
+        "Close": np.random.uniform(100, 500, len(date_range)),
+        "Volume": np.random.randint(1000, 10000, len(date_range)),
+        "Company": [selected_company] * len(date_range),
+    })
+
+    st.write(f"### Stock Data for {selected_company}")
+    st.dataframe(stock_data.style.highlight_max(subset="Close", axis=0))
+
+    # Area, Line, Doughnut, Gauge, and Waterfall Charts follow unchanged from the original.
+    # 1. Area Chart (Stock Price)
+    st.markdown("### 📊 Area Chart - Stock Price")
+    fig_area = px.area(stock_data, x="Date", y="Close", title=f"{selected_company} Stock Price Area Chart")
+    st.plotly_chart(fig_area)
+
+    # 2. Line Chart (Stock Volume)
+    st.markdown("### 📊 Line Chart - Stock Volume")
+    fig_line = px.line(stock_data, x="Date", y="Volume", title=f"{selected_company} Stock Volume Trend")
+    st.plotly_chart(fig_line)
+
+    # 3. Doughnut Chart (Volume Distribution)
+    st.markdown("### 📊 Doughnut Chart - Volume Distribution")
+    fig_doughnut = go.Figure(data=[go.Pie(
+        labels=["High Volume", "Low Volume"],
+        values=[stock_data["Volume"].sum() * 0.7, stock_data["Volume"].sum() * 0.3],
+        hole=0.4
+    )])
+    st.plotly_chart(fig_doughnut)
+
+    # 4. Gauge Chart (Stock Price Performance)
+    st.markdown("### 📊 Gauge Chart - Stock Price Performance")
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number", value=stock_data["Close"].iloc[-1],
+        title={"text": f"{selected_company} Price Performance", "font": {"size": 24}},
+        gauge={"axis": {"range": [None, 500]}, "bar": {"color": "green"}, "steps": [
+            {"range": [0, 100], "color": "lightgreen"},
+            {"range": [100, 200], "color": "lightyellow"},
+            {"range": [200, 300], "color": "orange"},
+            {"range": [300, 500], "color": "red"}
+        ]}
+    ))
+    st.plotly_chart(fig_gauge)
+
+    # 5. Waterfall Chart (Stock Movement)
+    st.markdown("### 📊 Waterfall Chart - Stock Movement")
+    fig_waterfall = go.Figure(go.Waterfall(
+        x=stock_data["Date"].iloc[:30],  # Using first 30 dates
+        y=stock_data["Close"].iloc[:30],
+        measure=["relative"] * 30
+    ))
+    st.plotly_chart(fig_waterfall)
+
+    # KPI Metrics (Example: Opening and Closing Prices)
+    st.markdown("### 📊 Key Performance Indicators")
+    kpi_values = {
+        "Opening Price": f"${stock_data['Open'].iloc[0]:.2f}",
+        "Closing Price": f"${stock_data['Close'].iloc[-1]:.2f}",
+        "Total Volume": f"{stock_data['Volume'].sum():,}",
+    }
+    for k, v in kpi_values.items():
+        st.metric(label=k, value=v)
+
+# Exporting Data - Enable download buttons after stock data is displayed
+    st.download_button(
+        label="Download Data as CSV",
+        data=stock_data.to_csv(index=False),
+        file_name=f"{selected_company}_stock_data.csv",
+        mime="text/csv"
+    )
+
+    # Custom Report Generation
+    report_file = io.StringIO()
+    report_file.write(f"Stock Report for {selected_company}\n\n")
+    report_file.write("Date\tOpen\tHigh\tLow\tClose\tVolume\n")
+    for row in stock_data.itertuples():
+        report_file.write(f"{row.Date}\t{row.Open}\t{row.High}\t{row.Low}\t{row.Close}\t{row.Volume}\n")
+    st.download_button(
+        label="Download Stock Report",
+        data=report_file.getvalue(),
+        file_name=f"{selected_company}_stock_report.txt",
+        mime="text/plain"
+    )
+
+# Main function for the app
+def main():
+    st.set_page_config(page_title="Stock Analysis App", layout="wide")
+
+    # Sidebar for navigation
+    st.sidebar.title("📈 Welcome to the Global Stock Market Trend Analyzer 🌍")
+    option = st.sidebar.radio("Choose a section", ["Login", "Register", "Market Trends Analysis", "Profile", "Logout", "Updates"])
+
+    if option == "Login":
+        login()
+    elif option == "Register":
+        register()
+    elif option == "Market Trends Analysis":
+        if st.session_state['logged_in']:
+            market_trends_analysis()
+        else:
+            st.warning("Please log in to access this section.")
+    elif option == "Profile":
+        if st.session_state['logged_in']:
+            profile_section()
+        else:
+            st.warning("Please log in to view your profile.")
+    elif option == "Logout":
+        if st.session_state['logged_in']:
+            logout()
+        else:
+            st.info("You are already logged out.")
+    elif option == "Updates":
+        updates_section()  # This will show the Updates section when selected
+
+# Updates section
+def updates_section():
+    st.title("Updates")
+    st.write("This section can be used to list or manage future updates and modifications.")
+    st.write("Below are some possible updates or changes planned for the app:")
+
+    # Example updates (you can expand this based on future changes)
+    updates = [
+        "1. Feature to track real-time stock prices.",
+        "2. Integration with multiple stock exchanges globally.",
+        "3. Enhanced user profile management features.",
+        "4. Improved data visualization with interactive charts."
+    ]
+    
+    for update in updates:
+        st.write(update)
+
+    # Skip the download button here since it's not necessary for the Updates section
+    st.info("This section does not currently support data downloads.")
+
+# Running the main app
+if __name__ == "__main__":
+    main()
+
+# Execution of whole code giev the following command on terminal
+"""""""
+1) pip install streamlit yfinance pandas numpy scikit-learn plotly
+2) set EMAIL_ADDRESS=your_email@example.com
+set EMAIL_PASSWORD=your_password
+3) streamlit run code.py
+""""""""
